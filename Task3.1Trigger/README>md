@@ -1,0 +1,1 @@
+This project uses an Arduino Nano 33 IoT with a BH1750 light sensor to monitor light levels. The sensor data is sent via MQTT to Node-RED using HiveMQ Cloud. Node-RED processes the data and triggers an email notification when predefined light thresholds are reached.

@@ -10,7 +10,10 @@ BH1750 lightMeter;
 
 // Switch interrupt
 volatile bool switchTriggered = false;
+volatile bool pirTriggered = false;
 volatile unsigned long lastSwitchTime = 0;
+volatile unsigned long lastPirTime = 0;
+const unsigned long debounceDelay = 250;
 
 // Persistent states
 bool lightsOnBySwitch = false;
@@ -31,6 +34,7 @@ void setup() {
   pinMode(pirPin, INPUT);
   pinMode(switchPin, INPUT_PULLUP);
 
+  attachInterrupt(digitalPinToInterrupt(pirPin), pirISR, RISING);
   attachInterrupt(digitalPinToInterrupt(switchPin), switchISR, FALLING);
 
   Serial.println("System ready");
@@ -39,11 +43,16 @@ void setup() {
 void loop() {
   // Pass the light reading into the logic functions
   float lux = lightMeter.readLightLevel();
-  bool isDark = (lux == 0);
+  bool isDark = (lux < 20);
 
-  motionLogic();
-  lightsLogic(isDark); // Pass isDark as a parameter
+  if (pirTriggered) motionLogic();
+  if (switchTriggered) switchLogic();
 
+  if (motionDetected && millis() - motionTimer > motionTimeout) {
+    motionDetected = false;
+  }
+
+  lightsLogic(isDark);
   delay(50); 
 }
 
@@ -61,48 +70,46 @@ void lightsLogic(bool isDark) {
   // Handle Specific Print Requirements
   String currentStatus = "";
   
-  if (autoLightsOn) {
-    currentStatus = "Dark & Motion detected - Lights On";
-  } else if (!isDark) {
-    currentStatus = "Not dark - lights off";
-  } else if (!motionDetected) {
-    currentStatus = "No motion - lights off";
+  if (lightsOnBySwitch) {
+    currentStatus = "Switch - lights on";
+  } else if (autoLightsOn) {
+    currentStatus = "Dark & Motion - Lights On";
+  } else {
+    currentStatus = isDark ? "Dark & No Motion - Lights Off" : "Not Dark - Lights Off";
   }
 
   // Only print if the status has changed AND we aren't in manual mode
-  if (currentStatus != lastStatus && !lightsOnBySwitch) {
+  if (currentStatus != lastStatus) {
     Serial.println(currentStatus);
     lastStatus = currentStatus;
   }
 }
 
 void motionLogic() {
-  int pirState = digitalRead(pirPin);
-  
-  // Update Motion Logic
-  if (pirState == HIGH) {
+    pirTriggered = false;
     motionDetected = true;
     motionTimer = millis(); 
-  }
+    Serial.println("Motion detected");  
+}
 
-  if (motionDetected && (millis() - motionTimer > motionTimeout)) {
-    motionDetected = false;
-  }
-
-  // Handle Manual Switch Interrupt
-  if (switchTriggered) {
+void switchLogic() {
     switchTriggered = false;
     lightsOnBySwitch = !lightsOnBySwitch;
-    Serial.println(lightsOnBySwitch ? "Manual Override: Lights ON" : "Manual Override: Lights OFF");
-    
-    // Clear lastStatus so the auto-logic prints again when Linda turns manual OFF
-    if (!lightsOnBySwitch) lastStatus = ""; 
+    Serial.print("Manual Switch: ");
+    Serial.println(lightsOnBySwitch ? "ON" : "OFF");
+}
+
+void pirISR() {
+  unsigned long now = millis();
+  if (now - lastPirTime > debounceDelay) {
+    pirTriggered = true;
+    lastPirTime = now;
   }
 }
 
 void switchISR() {
   unsigned long now = millis();
-  if (now - lastSwitchTime > 200) { 
+  if (now - lastSwitchTime > debounceDelay) {
     switchTriggered = true;
     lastSwitchTime = now;
   }

@@ -19,6 +19,8 @@ WiFiSSLClient wifiSSLClient;
 PubSubClient mqttClient(wifiSSLClient);
 BH1750 lightSensor;
 
+bool alreadyRead = false;
+
 // MQTT Connection
 void connectMQTT() {
    while (!mqttClient.connected()) {
@@ -64,15 +66,17 @@ void mqttConnection() {
 
 // Sensor trigger logic
 void lightSensorTrigger() {
+   if (messageSent) return;
    float lux = lightSensor.readLightLevel();
 
    Serial.print("Light Level: ");
    Serial.print(lux);
    Serial.println(" lx");
 
+  
    if (lux > 100) {
-       Serial.println("Light is bright!");
-       mqttClient.publish(MQTT_TOPIC, "Light is bright!");
+      Serial.println("Light is bright!");
+      mqttClient.publish(MQTT_TOPIC, "Light is bright!");
    } 
    else if (lux > 10) {
        Serial.println("Light is normal!");
@@ -82,6 +86,8 @@ void lightSensorTrigger() {
        Serial.println("No light");
        mqttClient.publish(MQTT_TOPIC, "No light");
    }
+   messageSent = true;
+   
 }
 
 void setup() {
@@ -96,6 +102,10 @@ void setup() {
 
 void loop() {
    mqttConnection();
-   lightSensorTrigger();
+
+   if (!messageSent) {
+      lightSensorTrigger();
+   }
+
    delay(5000);
 }

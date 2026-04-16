@@ -41,19 +41,7 @@ void setup() {
 }
 
 void loop() {
-  // Pass the light reading into the logic functions
-  float lux = lightMeter.readLightLevel();
-  bool isDark = (lux < 20);
-
-  if (pirTriggered) motionLogic();
-  if (switchTriggered) switchLogic();
-
-  if (motionDetected && millis() - motionTimer > motionTimeout) {
-    motionDetected = false;
-  }
-
-  lightsLogic(isDark);
-  delay(50); 
+  processInputs();
 }
 
 void lightsLogic(bool isDark) {
@@ -85,32 +73,47 @@ void lightsLogic(bool isDark) {
   }
 }
 
-void motionLogic() {
+void processInputs(){
+  unsigned long now = millis();
+  float lux = lightMeter.readLightLevel();
+  bool isDark = (lux < 20);
+
+  if (pirTriggered && (now - lastPirTime > debounceDelay)){
     pirTriggered = false;
+    lastPirTime = now;
+    motionLogic();
+  }
+
+  if (switchTriggered && (now - lastSwitchTime > debounceDelay)){
+    SwitchTriggered = false;
+    lastSwitchTime = now;
+    switchLogic();
+  }
+
+  if (motionDetected && (now - motionTimer > motionTimeout)){
+    motionDeected = false;
+  }
+
+  ligthsLogic(isDark);
+  delay(50);
+}
+
+void motionLogic() {
     motionDetected = true;
     motionTimer = millis(); 
     Serial.println("Motion detected");  
 }
 
 void switchLogic() {
-    switchTriggered = false;
     lightsOnBySwitch = !lightsOnBySwitch;
     Serial.print("Manual Switch: ");
     Serial.println(lightsOnBySwitch ? "ON" : "OFF");
 }
 
 void pirISR() {
-  unsigned long now = millis();
-  if (now - lastPirTime > debounceDelay) {
-    pirTriggered = true;
-    lastPirTime = now;
-  }
+  pirTriggered = true;
 }
 
 void switchISR() {
-  unsigned long now = millis();
-  if (now - lastSwitchTime > debounceDelay) {
-    switchTriggered = true;
-    lastSwitchTime = now;
-  }
+  switchTriggered = true;
 }
